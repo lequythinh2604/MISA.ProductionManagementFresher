@@ -3,11 +3,9 @@ using MISA.Core.Dtos;
 using MISA.Core.Entities;
 using MISA.Core.Interfaces.Repository;
 using MISA.Core.Utilities;
+using MISA.Infrastructure.Mappings;
 using MySqlConnector;
-using System.Collections;
 using System.Data;
-using System.Data.Common;
-using System.Text;
 
 namespace MISA.Infrastructure.Repositories
 {
@@ -81,7 +79,7 @@ namespace MISA.Infrastructure.Repositories
             };
 
             using (var db = new MySqlConnection(_connectionString))
-            {               
+            {
                 await db.ExecuteAsync(sql, parameters);
 
                 var selectSql = @"
@@ -101,81 +99,131 @@ namespace MISA.Infrastructure.Repositories
         /// Created by: LQThinh (04/12/2025)
         public async Task<PagedResult<WorkShift>> GetPagedWorkShiftsAsync(WorkShiftFilterRequest request)
         {
-                // quy định đầu vào phân trang
-                var page = request.Page <= 0 ? 1 : request.Page;
-                var pageSize = request.PageSize <= 0 ? 20 : request.PageSize;
-                var offset = (page - 1) * pageSize;
+            // quy định đầu vào phân trang
+            var page = request.Page <= 0 ? 1 : request.Page;
+            var pageSize = request.PageSize <= 0 ? 20 : request.PageSize;
+            var offset = (page - 1) * pageSize;
 
-                // khởi tạo câu lệnh where và param
-                var whereClauses = new List<string>();
-                var sortClauses = new List<string>();
-                var dynamicParameters = new DynamicParameters();
+            // khởi tạo câu lệnh where và param
+            var whereClauses = new List<string>();
+            var sortClauses = new List<string>();
+            var dynamicParameters = new DynamicParameters();
 
-                // tìm kiếm theo keyword
-                if (!string.IsNullOrEmpty(request.Keyword))
-                {
-                    var searchColumns = new List<string> { 
+            // tìm kiếm theo keyword
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                var searchColumns = new List<string> {
                         "work_shift_code",
                         "work_shift_name",
                         "created_by",
                         "modified_by"
                     };
-                    var searchByConditions = searchColumns
-                        .Select(col => $"{col} LIKE @keyword")
-                        .ToArray();
-                    whereClauses.Add($"({string.Join(" OR ", searchByConditions)}) ");
-                    dynamicParameters.Add("@keyword", $"%{request.Keyword}%");
-                };
+                var searchByConditions = searchColumns
+                    .Select(col => $"{col} LIKE @keyword")
+                    .ToArray();
+                whereClauses.Add($"({string.Join(" OR ", searchByConditions)}) ");
+                dynamicParameters.Add("@keyword", $"%{request.Keyword}%");
+            }
+            ;
 
-                // Tìm kiếm theo cột
-                if (request.FilterColumn.Count > 0)
+            // lấy mapping cột
+            var columnMapping = DbColumnMapping.WorkShiftMapping;
+
+            // Tìm kiếm theo cột
+            if (request.FilterColumn.Count > 0)
+            {
+                var paramIndex = 0;
+                foreach (var filter in request.FilterColumn)
                 {
-                    var paramIndex = 0;
-                    foreach ( var filter in request.FilterColumn )
+                    if (filter == null || string.IsNullOrWhiteSpace(filter.ColumnName)) continue;
+                    var paramName = $"@f{paramIndex}";
+                    if (columnMapping.TryGetValue(filter.ColumnName, out var dbColumnName))
                     {
-                        if (filter == null || string.IsNullOrWhiteSpace(filter.ColumnName)) continue;
-                        var paramName = $"@f{paramIndex}";
-
                         switch (filter.FilterOperator)
                         {
-                            case "contains":
-                                whereClauses.Add($"{filter.ColumnName} LIKE {paramName}");
-                                dynamicParameters.Add(paramName, $"%{filter.FilterValue}%");
+                            case "isnull":
+                                whereClauses.Add($"{dbColumnName} IS NULL");
                                 break;
-                            case "not contains":
-                                whereClauses.Add($"{filter.ColumnName} NOT LIKE {paramName}");
-                                dynamicParameters.Add(paramName, $"%{filter.FilterValue}%");
+                            case "notnull":
+                                whereClauses.Add($"{dbColumnName} IS NOT NULL");
                                 break;
                             case "=":
-                                whereClauses.Add($"{filter.ColumnName} = {paramName}");
-                                //dynamicParameters.Add(paramName, b);
+                                whereClauses.Add($"{dbColumnName} = {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
+                                break;
+                            case "<>":
+                                whereClauses.Add($"{dbColumnName} <> {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
+                                break;
+                            case "contains":
+                                whereClauses.Add($"{dbColumnName} LIKE {paramName}");
+                                dynamicParameters.Add(paramName, $"%{filter.FilterValue}%");
+                                break;
+                            case "notcontains":
+                                whereClauses.Add($"{dbColumnName} NOT LIKE {paramName}");
+                                dynamicParameters.Add(paramName, $"%{filter.FilterValue}%");
+                                break;
+                            case "startswith":
+                                whereClauses.Add($"{dbColumnName} LIKE {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}%");
+                                break;
+                            case "endswith":
+                                whereClauses.Add($"{dbColumnName} LIKE {paramName}");
+                                dynamicParameters.Add(paramName, $"%{filter.FilterValue}");
+                                break;
+                            case "ACTIVE":
+                                whereClauses.Add($"{dbColumnName} = {paramName}");
+                                dynamicParameters.Add(paramName, true);
+                                break;
+                            case "INACTIVE":
+                                whereClauses.Add($"{dbColumnName} = {paramName}");
+                                dynamicParameters.Add(paramName, false);
+                                break;
+                            case "<":
+                                whereClauses.Add($"{dbColumnName} < {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
+                                break;
+                            case "<=":
+                                whereClauses.Add($"{dbColumnName} <= {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
+                                break;
+                            case ">":
+                                whereClauses.Add($"{dbColumnName} > {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
+                                break;
+                            case ">=":
+                                whereClauses.Add($"{dbColumnName} >= {paramName}");
+                                dynamicParameters.Add(paramName, $"{filter.FilterValue}");
                                 break;
                             case null:
                                 break;
                             default:
                                 break;
                         }
-                        paramIndex++;
                     }
+                    paramIndex++;
                 }
+            }
 
-                // Sắp xếp theo cột
-                if (request.SortColumn.Count > 0)
+            // Sắp xếp theo cột
+            if (request.SortColumn.Count > 0)
+            {
+                foreach (var sort in request.SortColumn)
                 {
-                    foreach ( var sort in request.SortColumn )
+                    if (string.IsNullOrWhiteSpace(sort?.Selector)) continue;
+                    if (columnMapping.TryGetValue(sort.Selector, out var dbColumnName))
                     {
-                        if (string.IsNullOrWhiteSpace(sort?.Selector)) continue;
-
                         var direction = sort.Desc ? "DESC" : "ASC";
-                        sortClauses.Add($"{sort.Selector} {direction}");
+                        sortClauses.Add($"{dbColumnName} {direction}");
                     }
                 }
+            }
 
-                var whereClause = whereClauses.Any() ? " WHERE " + string.Join(" AND ", whereClauses) : string.Empty;
-                var sortClause = sortClauses.Any() ? " ORDER BY " + string.Join(", ", sortClauses) : "";
+            var whereClause = whereClauses.Any() ? " WHERE " + string.Join(" AND ", whereClauses) : string.Empty;
+            var sortClause = sortClauses.Any() ? " ORDER BY " + string.Join(", ", sortClauses) : "";
 
-                // dataSql
-                var dataSql = $@"
+            // dataSql
+            var dataSql = $@"
                                 SELECT
                                   work_shift_id,
                                   work_shift_code,
@@ -196,26 +244,26 @@ namespace MISA.Infrastructure.Repositories
                                 {whereClause}
                                 {sortClause}
                                 LIMIT @limit OFFSET @offset;";
-                dynamicParameters.Add("@limit", pageSize);
-                dynamicParameters.Add("@offset", offset);
-                
-                // kết nối db
-                using (var db = new MySqlConnection(_connectionString))
+            dynamicParameters.Add("@limit", pageSize);
+            dynamicParameters.Add("@offset", offset);
+
+            // kết nối db
+            using (var db = new MySqlConnection(_connectionString))
+            {
+                var items = (await db.QueryAsync<WorkShift>(dataSql, dynamicParameters)).ToList();
+                var countSql = $"SELECT COUNT(*) FROM work_shift {whereClause};";
+                var total = await db.ExecuteScalarAsync<int>(countSql, dynamicParameters);
+
+                var pagedResult = new PagedResult<WorkShift>
                 {
-                    var items = (await db.QueryAsync<WorkShift>(dataSql, dynamicParameters)).ToList();
-                    var countSql = $"SELECT COUNT(*) FROM work_shift {whereClause};";
-                    var total = await db.ExecuteScalarAsync<int>(countSql, dynamicParameters);
+                    Items = items,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalCount = total,
+                };
 
-                    var pagedResult = new PagedResult<WorkShift>
-                    {
-                        Items = items,
-                        Page = page,
-                        PageSize = pageSize,
-                        TotalCount = total,
-                    };
-
-                    return pagedResult;
-                }
+                return pagedResult;
+            }
         }
 
         /// <summary>

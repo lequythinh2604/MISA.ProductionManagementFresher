@@ -7,6 +7,10 @@ using System.Collections;
 
 namespace MISA.Core.Services
 {
+    /// <summary>
+    /// Service xử lý nghiệp vụ liên quan đến ca làm việc
+    /// </summary>
+    /// Created by: LQThinh (06/12/2025)
     public class WorkShiftService : IWorkShiftService
     {
         private readonly IWorkShiftRepository _workShiftRepository;
@@ -137,10 +141,14 @@ namespace MISA.Core.Services
             {
                 errors.Add("WorkShiftCode", "Mã ca tối đa 20 ký tự");
             }
-            // Mã ca không được trùng
-            else if (_workShiftRepository.IsWorkShiftExists(request.WorkShiftCode))
+            
+            if (request.WorkShiftCode != workShiftInDb.WorkShiftCode)
             {
-                errors.Add("WorkShiftCode", $"Ca làm việc <{request.WorkShiftCode}> đã tồn tại. Vui lòng kiểm tra lại.");
+                // Mã ca không được trùng
+                if (_workShiftRepository.IsWorkShiftExists(request.WorkShiftCode))
+                {
+                    errors.Add("WorkShiftCode", $"Ca làm việc <{request.WorkShiftCode}> đã tồn tại. Vui lòng kiểm tra lại.");
+                }
             }
 
             // Tên ca không được để trống
