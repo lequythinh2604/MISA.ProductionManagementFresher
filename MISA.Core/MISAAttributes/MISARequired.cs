@@ -1,0 +1,22 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MISA.Core.MISAAttributes
+{
+    /// <summary>
+    /// Attribute đánh dấu property là bắt buộc (không được để trống)
+    /// </summary>
+    /// Created by: ThinhLQ (10/12/2025)
+    [AttributeUsage(AttributeTargets.Property)]
+    public class MISARequired : Attribute
+    {
+        public string ErrorMessage { get; set; }
+        public MISARequired(string errorMessage)
+        {
+            ErrorMessage = errorMessage;
+        }
+    }
+}

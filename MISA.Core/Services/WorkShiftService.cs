@@ -3,7 +3,11 @@ using MISA.Core.Entities;
 using MISA.Core.Exceptions;
 using MISA.Core.Interfaces.Repository;
 using MISA.Core.Interfaces.Service;
+using MISA.Core.MISAAttributes;
 using System.Collections;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MISA.Core.Services
 {
@@ -11,225 +15,217 @@ namespace MISA.Core.Services
     /// Service xử lý nghiệp vụ liên quan đến ca làm việc
     /// </summary>
     /// Created by: LQThinh (06/12/2025)
-    public class WorkShiftService : IWorkShiftService
+    public class WorkShiftService(IWorkShiftRepository workShiftRepository) : BaseService<WorkShift>(workShiftRepository), IWorkShiftService
     {
-        private readonly IWorkShiftRepository _workShiftRepository;
-        public WorkShiftService(IWorkShiftRepository workShiftRepository)
+        private readonly IWorkShiftRepository _workShiftRepository = workShiftRepository;
+
+        /// <summary>
+        /// Lấy danh sách ca làm việc có hỗ trợ phân trang, tìm kiếm, lọc cột, sắp xếp
+        /// </summary>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Danh sách ca làm việc có hỗ trợ phân trang, tìm kiếm, lọc cột, sắp xếp</returns>
+        /// Created by: LQThinh (04/12/2025)
+        public async Task<PagedResult<WorkShift>> GetPagingAsync(WorkShiftFilterDto request)
         {
-            _workShiftRepository = workShiftRepository;
+            var pagedResult = await _workShiftRepository.GetPagingAsync(request);
+            return pagedResult;
         }
 
         /// <summary>
-        /// Thêm mới ca làm việc
+        /// Tạo mới ca làm việc
         /// </summary>
-        /// <param name="request"></param>
-        /// <returns>Ca làm việc mới vừa thêm</returns>
-        /// <exception cref="MISAValidateException"></exception>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Ca làm việc vừa tạo</returns>
         /// Created by: ThinhLQ (05/12/2025)
-        public async Task<WorkShift> AddNewWorkShiftAsync(WorkShiftAddRequest request)
+        public async Task<WorkShift> CreateWorkShiftAsync(WorkShiftCreateDto request)
         {
-            // validate
-            IDictionary errors = new Dictionary<string, string>();
-
-            // Mã ca không được để trống
-            if (string.IsNullOrEmpty(request.WorkShiftCode))
-            {
-                errors.Add("WorkShiftCode", "Mã ca không được để trống");
-            }
-            // Mã ca tối đa 20 ký tự
-            else if (request.WorkShiftCode.Length > 20)
-            {
-                errors.Add("WorkShiftCode", "Mã ca tối đa 20 ký tự");
-            }
-            // Mã ca không được trùng
-            else if (_workShiftRepository.IsWorkShiftExists(request.WorkShiftCode))
-            {
-                errors.Add("WorkShiftCode", "Mã ca không được trùng");
-            }
-
-            // Tên ca không được để trống
-            if (string.IsNullOrEmpty(request.WorkShiftName))
-            {
-                errors.Add("WorkShiftName", "Tên ca không được để trống");
-            }
-            // Tên ca tối đa 50 kí tự
-            else if (request.WorkShiftName.Length > 50)
-            {
-                errors.Add("WorkShiftName", "Tên ca tối đa 50 ký tự");
-            }
-
-            // Giờ vào ca không được để trống
-            if (request.StartTime == null)
-            {
-                errors.Add("StartTime", "Giờ vào ca không được để trống");
-            }
-            // Giờ hết ca không được để trống
-            if (request.EndTime == null)
-            {
-                errors.Add("EndTime", "Giờ hết ca không được để trống");
-            }
+            await ValidateShiftCreateDtoAsync(request);
 
             // Giờ nghỉ phải nằm trong khoảng giờ làm
             if (request.BreakStart < request.StartTime || request.BreakStart > request.EndTime)
             {
-                errors.Add("BreakStart", "Thời gian bắt đầu nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
+                throw new MISAValidateException($"Thời gian bắt đầu nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
             }
             if (request.BreakEnd > request.EndTime || request.BreakEnd < request.StartTime)
             {
-                errors.Add("BreakEnd", "Thời gian kết thúc nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
+                throw new MISAValidateException($"Thời gian kết thúc nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
             }
 
-            if (errors.Count > 0)
-            {
-                throw new MISAValidateException(errors);
-            }
+            var workShift = MapToWorkShift(request);
 
-            var result = await _workShiftRepository.AddNewWorkShiftAsync(request);
-            return result;
+            var createdWorkShift = await _workShiftRepository.CreateAsync(workShift);
+
+            return createdWorkShift;
         }
 
         /// <summary>
-        /// Lấy danh sách ca làm việc
+        /// Cập nhật thông tin ca làm việc 
         /// </summary>
-        /// <param name="request"></param>
-        /// <returns>Danh sách ca làm việc</returns>
-        /// Created by: ThinhLQ (04/12/2025)
-        public async Task<PagedResult<WorkShift>> GetPagedWorkShiftsAsync(WorkShiftFilterRequest request)
-        {
-            var results = await _workShiftRepository.GetPagedWorkShiftsAsync(request);
-            return results;
-        }
-
-        /// <summary>
-        /// Lấy ca làm việc theo Id
-        /// </summary>
-        /// <param name="workShiftId">Id ca làm việc</param>
-        /// <returns>Ca làm việc</returns>
+        /// <param name="id">ID của ca làm việc cần cập nhật</param>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns></returns>
         /// Created by: LQThinh (05/12/2025)
-        public async Task<WorkShift> GetWorkShiftByIdAsync(string workShiftId)
+        public async Task<WorkShift> UpdateWorkShiftAsync(string id, WorkShiftUpdateDto request)
         {
-            var result = await _workShiftRepository.GetWorkShiftByIdAsync(workShiftId);
-            return result;
-        }
-
-        /// <summary>
-        /// Sửa ca làm việc
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="workShiftId"></param>
-        /// <returns>Ca làm việc vừa sửa</returns>
-        /// <exception cref="MISAValidateException"></exception>
-        /// Created by: LQThinh (05/12/2025)
-        public async Task<WorkShift> UpdateWorkShiftAsync(string workShiftId, WorkShiftUpdateRequest request)
-        {
-            // validate
-            IDictionary errors = new Dictionary<string, string>();
-
-            var workShiftInDb = await _workShiftRepository.GetWorkShiftByIdAsync(workShiftId);
+            var workShiftInDb = await _workShiftRepository.GetByIdAsync(id);
             if (workShiftInDb == null)
             {
-                errors.Add("WorkShiftInDb", "Không tìm thấy ca làm việc");
+                throw new MISANotFoundException("Ca làm việc không tồn tại trong hệ thống.");
             }
 
-            // Mã ca không được để trống
-            if (string.IsNullOrEmpty(request.WorkShiftCode))
+            await ValidateShiftUpdateDtoAsync(request, workShiftInDb.WorkShiftCode);
+
+            // Giờ nghỉ phải nằm trong khoảng giờ làm
+            if (request.BreakStart < request.StartTime || request.BreakStart > request.EndTime)
             {
-                errors.Add("WorkShiftCode", "Mã ca không được để trống");
+                throw new MISAValidateException($"Thời gian bắt đầu nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
             }
-            // Mã ca tối đa 20 ký tự
-            else if (request.WorkShiftCode.Length > 20)
+            if (request.BreakEnd > request.EndTime || request.BreakEnd < request.StartTime)
             {
-                errors.Add("WorkShiftCode", "Mã ca tối đa 20 ký tự");
+                throw new MISAValidateException($"Thời gian kết thúc nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
             }
-            
-            if (request.WorkShiftCode != workShiftInDb.WorkShiftCode)
+
+            var updatedEntity = await _workShiftRepository.UpdateWorkShiftAsync(id, request);
+
+            return updatedEntity;
+        }
+
+        /// <summary>
+        /// Validate thông tin ca làm việc từ DTO
+        /// </summary>
+        /// <param name="request">DTO chứa thông tin ca làm việc cần validate</param>
+        /// <param name="excludeId">ID cần loại trừ khi kiểm tra trùng lặp (dùng khi update)</param>
+        /// <returns>True nếu hợp lệ</returns>
+        /// <exception cref="MISAValidateException"></exception>
+        /// <exception cref="MISADuplicateException"></exception>
+        /// Created by: ThinhLQ (05/12/2025)
+        private async Task<bool> ValidateShiftCreateDtoAsync(WorkShiftCreateDto request, string? excludeId = null)
+        {
+            var properties = typeof(WorkShiftCreateDto).GetProperties();
+            foreach (var prop in properties)
             {
-                // Mã ca không được trùng
-                if (_workShiftRepository.IsWorkShiftExists(request.WorkShiftCode))
+                var requiredAttr = prop.GetCustomAttributes(typeof(MISARequired), true);
+                if (requiredAttr.Length > 0)
                 {
-                    errors.Add("WorkShiftCode", $"Ca làm việc <{request.WorkShiftCode}> đã tồn tại. Vui lòng kiểm tra lại.");
+                    var value = prop.GetValue(request);
+                    if (value == null || (value is string str && string.IsNullOrWhiteSpace(str)))
+                    {
+                        throw new MISAValidateException($"{prop.Name} không được để trống.");
+                    }
                 }
             }
 
-            // Tên ca không được để trống
-            if (string.IsNullOrEmpty(request.WorkShiftName))
+            foreach (var prop in properties)
             {
-                errors.Add("WorkShiftName", "Tên ca không được để trống");
-            }
-            // Tên ca tối đa 50 kí tự
-            else if (request.WorkShiftName.Length > 50)
-            {
-                errors.Add("WorkShiftName", "Tên ca tối đa 50 ký tự");
+                var duplicateAttr = prop.GetCustomAttribute<MISACheckDuplicate>();
+                if (duplicateAttr != null)
+                {
+                    var value = prop.GetValue(request);
+                    if (value != null)
+                    {
+                        var columnAttr = prop.GetCustomAttribute<MISAColumnName>();
+                        var columnName = columnAttr != null ? columnAttr.ColumnName : prop.Name.ToLower();
+
+                        var isDuplicate = await _workShiftRepository.CheckDuplicateAsync(columnName, value, excludeId);
+                        if (isDuplicate)
+                        {
+                            throw new MISADuplicateException("Không được phép trùng lặp giá trị.", prop.Name, value.ToString() ?? "");
+                        }
+                    }
+                }
             }
 
-            // Giờ vào ca không được để trống
-            if (request.StartTime == default(DateTime))
-            {
-                errors.Add("StartTime", "Giờ vào ca không được để trống");
-            }
-            // Giờ hết ca không được để trống
-            if (request.EndTime == default(DateTime))
-            {
-                errors.Add("EndTime", "Giờ hết ca không được để trống");
-            }
-            // Giờ nghỉ phải nằm trong khoảng giờ làm
-            if (request.BreakStart < request.StartTime)
-            {
-                errors.Add("BreakStart", "Thời gian bắt đầu nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
-            }
-            if (request.BreakEnd > request.EndTime)
-            {
-                errors.Add("BreakEnd", "Thời gian kết thúc nghỉ giữa ca phải nằm trong khoảng thời gian tính từ giờ vào ca đến giờ hết ca");
-            }
-
-            if (errors.Count > 0)
-            {
-                throw new MISAValidateException(errors);
-            }
-
-            var updated = await _workShiftRepository.UpdateWorkShiftAsync(workShiftId, request);
-            return updated;
+            return true;
         }
 
         /// <summary>
-        /// Xóa ca làm việc
+        /// Chuyển đổi từ WorkShiftCreateDto sang WorkShift entity
         /// </summary>
-        /// <param name="workShiftId"></param>
-        /// <returns></returns>
-        /// Created by: LQThinh (05/12/2025)
-        public async Task<int> DeleteWorkShiftAsync(WorkShiftDeleteDto request)
+        /// <param name="request">DTO chứa thông tin ca làm việc</param>
+        /// <returns>WorkShift entity</returns>
+        /// Created by: ThinhLQ (05/12/2025)
+        private static WorkShift MapToWorkShift(WorkShiftCreateDto request)
         {
-            IDictionary errors = new Dictionary<string, string>();
-            if (request.workShiftIds.Count == 0)
+            var workShift = new WorkShift
             {
-                errors.Add("workShiftIds", "Không tìm thấy Ids");
-            }
-            if (errors.Count > 0)
+                WorkShiftCode = request.WorkShiftCode,
+                WorkShiftName = request.WorkShiftName,
+                StartTime = request.StartTime ?? DateTime.MinValue,
+                EndTime = request.EndTime ?? DateTime.MinValue,
+                BreakStart = request.BreakStart,
+                BreakEnd = request.BreakEnd,
+                WorkingHours = request.WorkingHours,
+                BreakHours = request.BreakHours,
+                WorkShiftStatus = request.WorkShiftStatus ?? true,
+                CreatedDate = request.CreatedDate,
+                CreatedBy = request.CreatedBy,
+                ModifiedDate = request.ModifiedDate,
+                ModifiedBy = request.ModifiedBy,
+                Description = request.Description
+            };
+            return workShift;
+        }
+
+        /// <summary>
+        /// Validate thông tin ca làm việc từ DTO
+        /// </summary>
+        /// <param name="request">DTO chứa thông tin ca làm việc cần validate</param>
+        /// <param name="excludeId">ID cần loại trừ khi kiểm tra trùng lặp (dùng khi update)</param>
+        /// <returns>True nếu hợp lệ</returns>
+        /// <exception cref="MISAValidateException"></exception>
+        /// <exception cref="MISADuplicateException"></exception>
+        /// Created by: ThinhLQ (05/12/2025)
+        private async Task<bool> ValidateShiftUpdateDtoAsync(WorkShiftUpdateDto request, string? excludeId = null)
+        {
+            var properties = typeof(WorkShiftUpdateDto).GetProperties();
+            foreach (var prop in properties)
             {
-                throw new MISAValidateException(errors);
+                var requiredAttr = prop.GetCustomAttributes(typeof(MISARequired), true);
+                if (requiredAttr.Length > 0)
+                {
+                    var value = prop.GetValue(request);
+                    if (value == null || (value is string str && string.IsNullOrWhiteSpace(str)))
+                    {
+                        throw new MISAValidateException($"{prop.Name} không được để trống.");
+                    }
+                }
             }
-            int affected = await _workShiftRepository.DeleteWorkShiftAsync(request);
-            return affected;
+
+            foreach (var prop in properties)
+            {
+                var duplicateAttr = prop.GetCustomAttribute<MISACheckDuplicate>();
+                if (duplicateAttr != null)
+                {
+                    var value = prop.GetValue(request);
+                    if (value != null)
+                    {
+                        var columnAttr = prop.GetCustomAttribute<MISAColumnName>();
+                        var columnName = columnAttr != null ? columnAttr.ColumnName : prop.Name.ToLower();
+
+                        var isDuplicate = await _workShiftRepository.CheckDuplicateAsync(columnName, value, excludeId);
+                        if (isDuplicate)
+                        {
+                            throw new MISADuplicateException("Không được phép trùng lặp giá trị.", prop.Name, value.ToString() ?? "");
+                        }
+                    }
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
         /// Cập nhật trạng thái ca làm việc
         /// </summary>
-        /// <param name="workShiftIds"></param>
-        /// <param name="newStatus"></param>
-        /// <returns></returns>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Số bản ghi được cập nhật trạng thái</returns>
         /// <exception cref="MISAValidateException"></exception>
         /// Created by: LQThinh (10/12/2025)
-        public async Task<int> UpdateMultipleStatusAsync(UpdateStatusDto request)
+        public async Task<int> UpdateMultipleStatusAsync(StatusUpdateDto request)
         {
-            IDictionary errors = new Dictionary<string, string>();
-            if (request.workShiftIds.Count == 0)
+            if (request.ids.Count == 0)
             {
-                errors.Add("workShiftIds", "Không tìm thấy Ids");
-            }
-            if (errors.Count > 0)
-            {
-                throw new MISAValidateException(errors);
+                throw new MISAValidateException("Danh sách ID không được để trống");
             }
             int affectedRows = await _workShiftRepository.UpdateMultipleStatusAsync(request);
             return affectedRows;

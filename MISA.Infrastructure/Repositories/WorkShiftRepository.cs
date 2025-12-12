@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Microsoft.Extensions.Configuration;
 using MISA.Core.Dtos;
 using MISA.Core.Entities;
 using MISA.Core.Interfaces.Repository;
@@ -9,95 +10,15 @@ using System.Data;
 
 namespace MISA.Infrastructure.Repositories
 {
-    public class WorkShiftRepository : IWorkShiftRepository
+    public class WorkShiftRepository(IConfiguration configuration) : BaseRepository<WorkShift>(configuration), IWorkShiftRepository
     {
-        private readonly string _connectionString;
-        public WorkShiftRepository(string connectionString)
-        {
-            _connectionString = connectionString;
-        }
-
         /// <summary>
-        /// Thêm mới ca làm việc
+        /// Lấy danh sách ca làm việc có hỗ trợ phân trang, tìm kiếm, lọc cột, sắp xếp
         /// </summary>
-        /// <param name="newWorkShift">Đối tượng ca làm việc</param>
-        /// <returns>Ca làm việc vừa thêm</returns>
-        /// /// Created by: LQThinh (04/12/2025)
-        public async Task<WorkShift> AddNewWorkShiftAsync(WorkShiftAddRequest request)
-        {
-            var newId = Guid.NewGuid();
-            var sql = @"
-                INSERT INTO work_shift (
-                    work_shift_id,
-                    work_shift_code,
-                    work_shift_name,
-                    start_time,
-                    end_time,
-                    break_start,
-                    break_end,
-                    working_hours,
-                    break_hours,
-                    work_shift_status,
-                    created_by,
-                    created_date,
-                    modified_by,
-                    modified_date,
-                    description
-                ) VALUES (
-                    @WorkShiftId,
-                    @WorkShiftCode,
-                    @WorkShiftName,
-                    @StartTime,
-                    @EndTime,
-                    @BreakStart,
-                    @BreakEnd,
-                    @WorkingHours,
-                    @BreakHours,
-                    @WorkShiftStatus,
-                    @CreatedBy,
-                    NOW(),
-                    @ModifiedBy,
-                    NOW(),
-                    @Description
-                );";
-
-            var parameters = new
-            {
-                WorkShiftId = newId,
-                WorkShiftCode = request.WorkShiftCode,
-                WorkShiftName = request.WorkShiftName,
-                StartTime = request.StartTime,
-                EndTime = request.EndTime,
-                BreakStart = request.BreakStart,
-                BreakEnd = request.BreakEnd,
-                WorkingHours = request.WorkingHours,
-                BreakHours = request.BreakHours,
-                WorkShiftStatus = request.WorkShiftStatus,
-                CreatedBy = "ThinhLQ",
-                ModifiedBy = "ThinhLQ",
-                Description = request.Description,
-            };
-
-            using (var db = new MySqlConnection(_connectionString))
-            {
-                await db.ExecuteAsync(sql, parameters);
-
-                var selectSql = @"
-                    SELECT *
-                    FROM work_shift
-                    WHERE work_shift_id = @Id;";
-                var inserted = await db.QuerySingleAsync<WorkShift>(selectSql, new { Id = newId });
-                return inserted;
-            }
-        }
-
-        /// <summary>
-        /// Lấy danh sách ca làm việc theo filter, phân trang và sắp xếp
-        /// </summary>
-        /// <param name="request">Đối tượng chứa các tham số lọc, phân trang và sắp xếp</param>
-        /// <returns>Danh sách ca làm việc theo page</returns>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Danh sách ca làm việc có hỗ trợ phân trang, tìm kiếm, lọc cột, sắp xếp</returns>
         /// Created by: LQThinh (04/12/2025)
-        public async Task<PagedResult<WorkShift>> GetPagedWorkShiftsAsync(WorkShiftFilterRequest request)
+        public async Task<PagedResult<WorkShift>> GetPagingAsync(WorkShiftFilterDto request)
         {
             // quy định đầu vào phân trang
             var page = request.Page <= 0 ? 1 : request.Page;
@@ -248,7 +169,7 @@ namespace MISA.Infrastructure.Repositories
             dynamicParameters.Add("@offset", offset);
 
             // kết nối db
-            using (var db = new MySqlConnection(_connectionString))
+            using (var db = new MySqlConnection(connectionString))
             {
                 var items = (await db.QueryAsync<WorkShift>(dataSql, dynamicParameters)).ToList();
                 var countSql = $"SELECT COUNT(*) FROM work_shift {whereClause};";
@@ -267,81 +188,15 @@ namespace MISA.Infrastructure.Repositories
         }
 
         /// <summary>
-        /// Lấy ca làm việc theo Id
+        /// Cập nhật thông tin ca làm việc 
         /// </summary>
-        /// <param name="workShiftId">Id ca làm việc</param>
-        /// <returns>Ca làm việc</returns>
+        /// <param name="id">ID của ca làm việc cần cập nhật</param>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns></returns>
         /// Created by: LQThinh (05/12/2025)
-        public async Task<WorkShift> GetWorkShiftByIdAsync(string workShiftId)
+        public async Task<WorkShift> UpdateWorkShiftAsync(string id, WorkShiftUpdateDto request)
         {
-            try
-            {
-                var sql = @"
-                SELECT *
-                FROM work_shift
-                WHERE work_shift_id = @Id;";
-
-                using (var db = new MySqlConnection(_connectionString))
-                {
-                    var result = await db.QuerySingleOrDefaultAsync<WorkShift>(sql, new { Id = workShiftId });
-                    return result;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Kiểm tra ca làm việc đã tồn tại hay chưa
-        /// </summary>
-        /// <param name="workShiftCode"></param>
-        /// <returns>true/false</returns>
-        /// Created by: LQThinh (04/12/2025)
-        public bool IsWorkShiftExists(string workShiftCode)
-        {
-            using (var db = new MySqlConnection(_connectionString))
-            {
-                var checkWorkShiftCodeSql = "SELECT COUNT(*) FROM work_shift WHERE work_shift_code = @WorkShiftCode";
-                var exists = db.ExecuteScalar<int>(checkWorkShiftCodeSql, new { WorkShiftCode = workShiftCode });
-                return exists > 0;
-            }
-        }
-
-        /// <summary>
-        /// Kiểm tra workShiftCode đã có hay chưa ngoại trừ excludeId
-        /// </summary>
-        /// <param name="workShiftCode"></param>
-        /// <param name="excludeId"></param>
-        /// <returns>true/false</returns>
-        /// Created by: LQThinh (05/12/2025)
-        public bool IsWorkShiftCodeExists(string workShiftCode, string? excludeCode = null)
-        {
-            using (var db = new MySqlConnection(_connectionString))
-            {
-                var sql = @"
-                    SELECT COUNT(*) FROM work_shift
-                    WHERE work_shift_code = @WorkShiftCode
-                      AND (@ExcludeCode IS NULL OR work_shift_code <> @ExcludeCode);";
-                var count = db.ExecuteScalar<int>(sql, new { WorkShiftCode = workShiftCode, ExcludeCode = excludeCode });
-                return count == 0;
-            }
-        }
-
-        /// <summary>
-        /// Sửa ca làm việc
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="workShiftId"></param>
-        /// <returns>Ca làm việc vừa sửa</returns>
-        /// <exception cref="Exception"></exception>
-        /// Created by: LQThinh (05/12/2025)
-        public async Task<WorkShift> UpdateWorkShiftAsync(string workShiftId, WorkShiftUpdateRequest request)
-        {
-            try
-            {
-                var sql = @"
+            var sql = @"
                 UPDATE work_shift SET
                     work_shift_code = @WorkShiftCode,
                     work_shift_name = @WorkShiftName,
@@ -357,87 +212,51 @@ namespace MISA.Infrastructure.Repositories
                     description = @Description
                 WHERE work_shift_id = @WorkShiftId;";
 
-                var parameters = new
-                {
-                    WorkShiftId = workShiftId,
-                    WorkShiftCode = request.WorkShiftCode,
-                    WorkShiftName = request.WorkShiftName,
-                    StartTime = request.StartTime,
-                    EndTime = request.EndTime,
-                    BreakStart = request.BreakStart,
-                    BreakEnd = request.BreakEnd,
-                    WorkingHours = request.WorkingHours,
-                    BreakHours = request.BreakHours,
-                    WorkShiftStatus = request.WorkShiftStatus,
-                    ModifiedBy = "ThinhLQ",
-                    Description = request.Description,
-                };
-
-                using (var db = new MySqlConnection(_connectionString))
-                {
-                    var affected = await db.ExecuteAsync(sql, parameters);
-
-                    var updated = await GetWorkShiftByIdAsync(workShiftId);
-                    return updated;
-                }
-            }
-            catch (Exception ex)
+            var parameters = new
             {
-                throw new Exception(ex.Message);
+                WorkShiftId = id,
+                WorkShiftCode = request.WorkShiftCode,
+                WorkShiftName = request.WorkShiftName,
+                StartTime = request.StartTime,
+                EndTime = request.EndTime,
+                BreakStart = request.BreakStart,
+                BreakEnd = request.BreakEnd,
+                WorkingHours = request.WorkingHours,
+                BreakHours = request.BreakHours,
+                WorkShiftStatus = request.WorkShiftStatus,
+                ModifiedBy = "ThinhLQ",
+                Description = request.Description,
+            };
+
+            using (var db = new MySqlConnection(connectionString))
+            {
+                var affected = await db.ExecuteAsync(sql, parameters);
+
+                var updatedEntity = await GetByIdAsync(id);
+                return updatedEntity;
             }
         }
 
         /// <summary>
-        /// Xóa ca làm việc
+        /// Cập nhật trạng thái ca làm việc
         /// </summary>
-        /// <param name="workShiftId"></param>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        /// Created by: LQThinh (05/12/2025)
-        public async Task<int> DeleteWorkShiftAsync(WorkShiftDeleteDto request)
-        {
-            try
-            {
-                using (var db = new MySqlConnection(_connectionString))
-                {
-                    var sql = "DELETE FROM work_shift WHERE work_shift_id IN @WorkShiftIds;";
-                    var parameters = new
-                    {
-                        WorkShiftIds = request.workShiftIds
-                    };
-                    var affected = await db.ExecuteAsync(sql, parameters);
-                    if (affected == 0)
-                    {
-                        throw new Exception("Xóa ca không thành công");
-                    }
-                    return affected;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Cập nhật trạng thái ca
-        /// </summary>
-        /// <param name="workShiftIds"></param>
-        /// <param name="newStatus"></param>
-        /// <returns>Số lượng ca đc cập nhật</returns>
-        public async Task<int> UpdateMultipleStatusAsync(UpdateStatusDto request)
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Số bản ghi được cập nhật trạng thái</returns>
+        /// <exception cref="MISAValidateException"></exception>
+        /// Created by: LQThinh (10/12/2025)
+        public async Task<int> UpdateMultipleStatusAsync(StatusUpdateDto request)
         {
             string sql = @"
             UPDATE work_shift 
             SET work_shift_status = @NewStatus
-            WHERE work_shift_id IN @WorkShiftIds;";
+            WHERE work_shift_id IN @Ids;";
             var parameters = new
             {
                 NewStatus = request.newStatus,
-                WorkShiftIds = request.workShiftIds
+                Ids = request.ids
             };
 
-            using (var db = new MySqlConnection(_connectionString))
+            using (var db = new MySqlConnection(connectionString))
             {
                 int affectedRows = await db.ExecuteAsync(sql, parameters);
                 return affectedRows;

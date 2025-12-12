@@ -22,6 +22,7 @@ namespace MISA.Core.Enums
         /// </summary>
         BadRequest = 400, // Yêu cầu có cú pháp sai hoặc không thể được đáp ứng.
         NotFound = 404, // Không tìm thấy tài nguyên được yêu cầu.
+        Conflict = 409, // Xung đột xảy ra, thường do trùng lặp dữ liệu.
         /// <summary>
         /// Server Error
         /// </summary>

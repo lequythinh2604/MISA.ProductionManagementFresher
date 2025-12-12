@@ -3,26 +3,23 @@ using MISA.Core.Interfaces.Service;
 using MISA.Core.Middlewares;
 using MISA.Core.Services;
 using MISA.Infrastructure.Repositories;
-using MySqlConnector;
-using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Cấu hình database connection
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-//builder.Services.AddScoped<IDbConnection>(sp => new MySqlConnection(connectionString));
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
-// Đăng ký service
-builder.Services.AddScoped<IWorkShiftService, WorkShiftService>();
+// Đăng ký service, repo
+builder.Services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
+builder.Services.AddScoped(typeof(IBaseService<>), typeof(BaseService<>));
 
-// Đăng ký repo
-builder.Services.AddScoped<IWorkShiftRepository>(sp => new WorkShiftRepository(connectionString));
+builder.Services.AddScoped<IWorkShiftService, WorkShiftService>();
+builder.Services.AddScoped<IWorkShiftRepository, WorkShiftRepository>();
 
 // config CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Allowed", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins("http://localhost:5173") // Vue chạy cổng này
               .AllowAnyHeader()
@@ -45,7 +42,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ErrorExceptionMiddleware>();
-app.UseCors("Allowed");
+app.UseCors("AllowFrontend");
 app.UseAuthorization();
 app.MapControllers();
 

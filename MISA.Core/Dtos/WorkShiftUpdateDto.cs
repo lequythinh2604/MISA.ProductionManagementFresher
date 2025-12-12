@@ -1,30 +1,34 @@
-﻿
-using MISA.Core.MISAAttributes;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿using MISA.Core.MISAAttributes;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace MISA.Core.Entities
+namespace MISA.Core.Dtos
 {
-    [MISATableName("work_shift")]
-    public class WorkShift
+    /// <summary>
+    /// DTO cập nhật thông tin ca làm việc
+    /// </summary>
+    /// Created by: ThinhLQ (04/12/2025)
+    public class WorkShiftUpdateDto
     {
-        [MISAKey]
-        [MISAColumnName("work_shift_id")]
-        public Guid? WorkShiftId { get; set; } = Guid.NewGuid();
-
         [MISARequired("Không được để trống")]
         [MISAColumnName("work_shift_code")]
         [MISACheckDuplicate("Mã ca không được trùng")]
-        public string WorkShiftCode { get; set; } = string.Empty;
+        public string? WorkShiftCode { get; set; }
 
         [MISARequired("Không được để trống")]
         [MISAColumnName("work_shift_name")]
-        public string WorkShiftName { get; set; } = string.Empty;
+        public string? WorkShiftName { get; set; }
 
+        [MISARequired("Không được để trống")]
         [MISAColumnName("start_time")]
-        public DateTime StartTime { get; set; }
+        public DateTime? StartTime { get; set; }
 
+        [MISARequired("Không được để trống")]
         [MISAColumnName("end_time")]
-        public DateTime EndTime { get; set; }
+        public DateTime? EndTime { get; set; }
 
         [MISAColumnName("break_start")]
         public DateTime? BreakStart { get; set; }
@@ -39,19 +43,13 @@ namespace MISA.Core.Entities
         public decimal BreakHours { get; set; }
 
         [MISAColumnName("work_shift_status")]
-        public bool WorkShiftStatus { get; set; }
-
-        [MISAColumnName("created_date")]
-        public DateTime CreatedDate { get; set; }
-
-        [MISAColumnName("created_by")]
-        public string? CreatedBy { get; set; }
+        public bool? WorkShiftStatus { get; set; }
 
         [MISAColumnName("modified_date")]
-        public DateTime ModifiedDate { get; set; }
+        public DateTime ModifiedDate { get; set; } = DateTime.Now;
 
         [MISAColumnName("modified_by")]
-        public string? ModifiedBy { get; set; }
+        public string? ModifiedBy { get; set; } = "ThinhLQ";
 
         [MISAColumnName("description")]
         public string? Description { get; set; }

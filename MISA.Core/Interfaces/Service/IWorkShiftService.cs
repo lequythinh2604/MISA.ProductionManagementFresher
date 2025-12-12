@@ -3,40 +3,32 @@ using MISA.Core.Entities;
 
 namespace MISA.Core.Interfaces.Service
 {
-    public interface IWorkShiftService
+    public interface IWorkShiftService : IBaseService<WorkShift>
     {
+        /// <summary>
+        /// Tạo mới ca làm việc
+        /// </summary>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns>Ca làm việc vừa tạo</returns>
+        /// Created by: ThinhLQ (05/12/2025)
+        Task<WorkShift> CreateWorkShiftAsync(WorkShiftCreateDto request);
+
         /// <summary>
         /// Lấy danh sách ca làm việc theo filter, phân trang và sắp xếp
         /// </summary>
         /// <param name="request">Đối tượng chứa các tham số lọc, phân trang và sắp xếp</param>
         /// <returns>Danh sách ca làm việc theo page</returns>
         /// Created by: LQThinh (04/12/2025)
-        Task<PagedResult<WorkShift>> GetPagedWorkShiftsAsync(WorkShiftFilterRequest request);
+        Task<PagedResult<WorkShift>> GetPagingAsync(WorkShiftFilterDto request);
 
         /// <summary>
-        /// Thêm mới ca làm việc
+        /// Cập nhật thông tin ca làm việc 
         /// </summary>
-        /// <param name="newWorkShift">Đối tượng ca làm việc</param>
-        /// <returns>Ca làm việc vừa thêm</returns>
+        /// <param name="id">ID của ca làm việc cần cập nhật</param>
+        /// <param name="request">Đối tượng payload</param>
+        /// <returns></returns>
         /// Created by: LQThinh (05/12/2025)
-        Task<WorkShift> AddNewWorkShiftAsync(WorkShiftAddRequest request);
-
-        /// <summary>
-        /// Lấy ca làm việc theo Id
-        /// </summary>
-        /// <param name="workShiftId">Id ca làm việc</param>
-        /// <returns>Ca làm việc</returns>
-        /// Created by: LQThinh (05/12/2025)
-        Task<WorkShift> GetWorkShiftByIdAsync(string workShiftId);
-
-        /// <summary>
-        /// Sửa ca làm việc
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="workShiftId"></param>
-        /// <returns>Ca làm việc vừa sửa</returns>
-        /// Created by: LQThinh (05/12/2025)
-        Task<WorkShift> UpdateWorkShiftAsync(string workShiftId, WorkShiftUpdateRequest request);
+        Task<WorkShift> UpdateWorkShiftAsync(string id, WorkShiftUpdateDto request);
 
         /// <summary>
         /// Cập nhật trạng thái ca
@@ -45,14 +37,6 @@ namespace MISA.Core.Interfaces.Service
         /// <param name="newStatus"></param>
         /// <returns>Số lượng ca cập nhật</returns>
         /// Created by: LQThinh (10/12/2025)
-        Task<int> UpdateMultipleStatusAsync(UpdateStatusDto request);
-
-        /// <summary>
-        /// Xóa ca làm việc
-        /// </summary>
-        /// <param name="workShiftId"></param>
-        /// <returns></returns>
-        /// Created by: LQThinh (05/12/2025)
-        Task<int> DeleteWorkShiftAsync(WorkShiftDeleteDto request);
+        Task<int> UpdateMultipleStatusAsync(StatusUpdateDto request);
     }
 }

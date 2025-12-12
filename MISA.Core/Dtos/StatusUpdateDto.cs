@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace MISA.Core.Dtos
 {
-    public class ErrorResponse
+    public class StatusUpdateDto
     {
+        public HashSet<Guid> ids { get; set; } = new HashSet<Guid>();
+        public bool newStatus { get; set; }
     }
 }
